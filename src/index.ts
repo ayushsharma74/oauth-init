@@ -167,7 +167,7 @@ export class GoogleAuthProvider {
 const program = new Command();
 
 async function checkNpmReadiness() {
-  intro("Checking if your project is ready for npm publish...");
+  intro("Checking if your project is ready for npm publish q2eqwe q...");
 
   const packageJsonPath = path.join(process.cwd(), "package.json");
   let pkg: any;
