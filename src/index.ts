@@ -162,10 +162,10 @@ export class GoogleAuthProvider {
 }
 
 class Orchestrator {
-  private projectname: string 
-  
+  private projectname: string;
+
   constructor(proejctName: string) {
-    this.projectname = proejctName
+    this.projectname = proejctName;
   }
   async setupOAuthServices(oauthServices: string[]): Promise<void> {
     for (const service of oauthServices) {
@@ -187,7 +187,7 @@ class Orchestrator {
         await this.setupGithubOAuth(githubOauthCallback.toString());
       }
     }
-    
+
     outro("OAuth setup completed! Thank you for using oauth-init client!");
   }
 
@@ -313,7 +313,7 @@ async function main() {
     placeholder: projectDirectoryName,
     defaultValue: projectDirectoryName,
   });
-  
+
   if (isCancel(projectName)) {
     cancel("Operation cancelled.");
     process.exit(0);
@@ -332,20 +332,9 @@ async function main() {
     process.exit(0);
   }
 
-  const orchestrator = new Orchestrator(projectName as string).setupOAuthServices(oauthToSetup as string[]);
+  const orchestrator = new Orchestrator(
+    projectName as string,
+  ).setupOAuthServices(oauthToSetup as string[]);
 }
 
-program
-  .name("oauth-init")
-  .description("Set up OAuth providers for your project")
-  .version("0.1.0");
-
-program
-  .command("check")
-  .description("Check if your project is ready for npm publish")
-  .action(checkNpmReadiness);
-
-program
-  .action(main);
-
-program.parse();
+main();
