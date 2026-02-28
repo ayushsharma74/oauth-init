@@ -1,12 +1,12 @@
 {
   "name": "oauth-init",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI for setting up OAuth providers for your project",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "oauth-init": "./dist/index.js"
+    "oauth-init": "dist/index.js"
   },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target node",
