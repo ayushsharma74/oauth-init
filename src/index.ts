@@ -162,6 +162,8 @@ export class GoogleAuthProvider {
   }
 }
 
+
+
 const program = new Command();
 
 async function checkNpmReadiness() {

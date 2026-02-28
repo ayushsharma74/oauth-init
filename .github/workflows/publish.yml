@@ -1,0 +1,35 @@
+name: Publish Package to NPM
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Setup Bun instead of Node
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # 2. Install dependencies using Bun's lockfile
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # 3. Build your project
+      - name: Build project
+        run: bun run build
+
+      - name: Configure NPM Token
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Publish to NPM
+        run: npm publish
+        env:
+          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
