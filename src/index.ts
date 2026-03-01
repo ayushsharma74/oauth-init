@@ -14,7 +14,7 @@ import {
   password,
 } from "@clack/prompts";
 import open from "open";
-import { writeFile, access, readFile, unlink, stat } from "fs/promises";
+import { writeFile, access, readFile, unlink } from "fs/promises";
 import path from "path";
 import http from "http";
 
@@ -295,7 +295,66 @@ class Orchestrator {
     }
 
     if (appType === "oauth-app") {
-      log.warning("FUCK YOU");
+      log.step("Step 1: Create OAuth App on GitHub");
+      const oauthAppUrl = "https://github.com/settings/applications/new";
+      log.message(`Opening: ${oauthAppUrl}`);
+      await open(oauthAppUrl);
+      note(
+        "1. Fill Application Name and Homepage URL\n2. Enter Authorization callback URL: " +
+          callbackUrl +
+          "\n3. Click 'Register application'",
+        "Action Required",
+      );
+
+      const brandDone = await text({
+        message:
+          "Press Enter once you've created the OAuth App (or type 'skip' if done previously)",
+      });
+      if (isCancel(brandDone)) return cancel("Setup aborted.");
+
+      log.step("Step 2: Save credentials");
+      const clientId = await text({
+        message: "Paste your Client ID:",
+        placeholder: "Iv1.xxx",
+      });
+      if (isCancel(clientId)) return cancel("Setup aborted.");
+
+      const clientSecret = await password({
+        message: "Paste your Client Secret:",
+      });
+      if (isCancel(clientSecret)) return cancel("Setup aborted.");
+
+      const saveOption = await select({
+        message: "Where do you want to save the credentials?",
+        options: [
+          {
+            label: ".env",
+            value: "dot-env",
+          },
+          {
+            label: ".env.local",
+            value: "dot-env-dot-local",
+          },
+          {
+            label: ".json",
+            value: "json",
+          },
+          {
+            label: "print to the console",
+            value: "print",
+          },
+        ],
+      });
+      const envPath = saveOption === "dot-env" ? ".env" : ".env.local";
+      const newEnvContent = `GITHUB_CLIENT_ID=${clientId}\nGITHUB_CLIENT_SECRET=${clientSecret}`;
+      try {
+        await access(envPath);
+        const existingContent = await readFile(envPath, "utf-8");
+        await writeFile(envPath, existingContent + "\n" + newEnvContent);
+      } catch {
+        await writeFile(envPath, newEnvContent);
+      }
+      log.success("GitHub OAuth App credentials saved!");
     }
   }
 }
