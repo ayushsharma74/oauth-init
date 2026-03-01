@@ -14,6 +14,20 @@
     "prepare": "bun run build",
     "test": "bun test"
   },
+  "keywords": [
+    "cli",
+    "oauth",
+    "oauth2",
+    "authentication",
+    "auth",
+    "google",
+    "github",
+    "credentials",
+    "setup",
+    "interactive",
+    "bun",
+    "typescript"
+  ],
   "dependencies": {
     "@clack/prompts": "^1.0.1",
     "@types/bun": "^1.3.9",
