@@ -1,6 +1,4 @@
-# oauth-init
-
-Interactive CLI tool that guides you through setting up OAuth credentials for Google and GitHub.
+<img width="474" height="110" alt="image" src="https://github.com/user-attachments/assets/57dc1bf8-19b5-45ba-b7fd-d4fb6dd111d3" />
 
 ## What This Does
 
