@@ -9,18 +9,81 @@ import {
   multiselect,
 } from "@clack/prompts";
 import path from "path";
+import fs from "fs";
 import { GoogleAuthProvider } from "./lib/google-provider.js";
 import { GitHubAuthProvider } from "./lib/github-provider.js";
 import { globalConfig } from "./lib/config.js";
 
+interface AuthLibrary {
+  name: string;
+  callbackPattern: string;
+}
+
+const AUTH_LIBRARIES: AuthLibrary[] = [
+  { name: "next-auth", callbackPattern: "/api/auth/callback/[provider]" },
+  { name: "@auth/core", callbackPattern: "/api/auth/callback/[provider]" },
+  { name: "better-auth", callbackPattern: "/api/auth/callback/[provider]" },
+  { name: "lucia", callbackPattern: "/auth/callback" },
+  { name: "arctic", callbackPattern: "/auth/callback/[provider]" },
+  { name: "iron-session", callbackPattern: "/api/auth/callback" },
+];
+
+function detectAuthLibrary(): AuthLibrary | null {
+  const packageJsonPath = path.join(process.cwd(), "package.json");
+  if (!fs.existsSync(packageJsonPath)) {
+    return null;
+  }
+
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+    const deps = {
+      ...packageJson.dependencies,
+      ...packageJson.devDependencies,
+    };
+
+    for (const lib of AUTH_LIBRARIES) {
+      if (deps[lib.name]) {
+        return lib;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function getCallbackUrlPattern(authLibrary: AuthLibrary | null): string {
+  if (authLibrary) {
+    return authLibrary.callbackPattern;
+  }
+  return "/oauth/callback/[provider]";
+}
+
+const DEFAULT_CALLBACK_URL = "http://localhost:3000";
+
 async function setupOAuthServices(oauthServices: string[]): Promise<void> {
+  const authLibrary = detectAuthLibrary();
+  const callbackPattern = getCallbackUrlPattern(authLibrary);
+
+  if (authLibrary) {
+    log.info(`Detected auth library: ${authLibrary.name}`);
+  } else {
+    log.info("No known auth library detected, using generic callback pattern");
+  }
+
   for (const service of oauthServices) {
+    const providerCallback = callbackPattern.replace(
+      "[provider]",
+      service
+    );
+    const defaultCallback = `${DEFAULT_CALLBACK_URL}${providerCallback}`;
+
     if (service === "google") {
       log.step("Google OAuth Setup");
       const googleOauthCallback = await text({
         message: "Enter the Google OAuth callback URL:",
-        placeholder: "http://localhost:3000/oauth/callback/google",
-        defaultValue: `http://localhost:3000/oauth/callback/google`,
+        placeholder: defaultCallback,
+        defaultValue: defaultCallback,
       });
       if (isCancel(googleOauthCallback)) {
         cancel("Setup aborted.");
@@ -32,8 +95,8 @@ async function setupOAuthServices(oauthServices: string[]): Promise<void> {
       log.step("GitHub OAuth Setup");
       const githubOauthCallback = await text({
         message: "Enter the GitHub OAuth callback URL:",
-        placeholder: "http://localhost:3000/oauth/callback/github",
-        defaultValue: `http://localhost:3000/oauth/callback/github`,
+        placeholder: defaultCallback,
+        defaultValue: defaultCallback,
       });
       if (isCancel(githubOauthCallback)) {
         cancel("Setup aborted.");
