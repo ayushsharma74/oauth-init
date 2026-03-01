@@ -12,70 +12,20 @@ import {
   select,
   multiselect,
   password,
-  confirm,
 } from "@clack/prompts";
 import open from "open";
-import { writeFile, access, readFile, unlink } from "fs/promises";
+import { writeFile, unlink } from "fs/promises";
 import path from "path";
 import http from "http";
+import { SaveOption } from "./types.js";
+import { saveCredentials } from "./lib/save-credentials.js";
 
 const globalConfig = {
   quiet: false,
   noOpen: false,
 };
 
-type SaveOption = "dot-env" | "dot-env-dot-local" | "json" | "print";
 
-async function saveCredentials(
-  clientId: string,
-  clientSecret: string,
-  provider: "google" | "github",
-  saveOption: SaveOption
-): Promise<void> {
-  const envKeyId = `${provider.toUpperCase()}_CLIENT_ID`;
-  const envKeySecret = `${provider.toUpperCase()}_CLIENT_SECRET`;
-  const newEnvContent = `${envKeyId}=${clientId}\n${envKeySecret}=${clientSecret}`;
-
-  if (saveOption === "print") {
-    log.message(newEnvContent);
-    log.success("Credentials printed to console");
-    return;
-  }
-
-  if (saveOption === "json") {
-    const jsonContent = JSON.stringify(
-      { clientId, clientSecret },
-      null,
-      2
-    );
-    const jsonPath = `${provider}-credentials.json`;
-    await writeFile(jsonPath, jsonContent);
-    log.success(`Credentials saved to ${jsonPath}`);
-    return;
-  }
-
-  const envPath = saveOption === "dot-env" ? ".env" : ".env.local";
-
-  try {
-    await access(envPath);
-    const shouldAppend = await confirm({
-      message: `${envPath} already exists. Append credentials?`,
-      initialValue: true,
-    });
-
-    if (isCancel(shouldAppend) || !shouldAppend) {
-      log.warn("Credentials not saved.");
-      return;
-    }
-
-    const existingContent = await readFile(envPath, "utf-8");
-    await writeFile(envPath, existingContent + "\n" + newEnvContent);
-  } catch {
-    await writeFile(envPath, newEnvContent);
-  }
-
-  log.success(`Credentials saved to ${envPath}`);
-}
 
 export class GoogleAuthProvider {
   async run(_appName: string) {
@@ -160,12 +110,6 @@ export class GoogleAuthProvider {
       });
       if (isCancel(clientId)) return cancel("Setup aborted.");
 
-      // const isValid = await this.validateCredentials(clientId);
-      // if (!isValid) {
-      //   log.error("Invalid Client ID. Please check and try again.");
-      //   return cancel("Setup aborted.");
-      // }
-
       const clientSecret = await password({
         message: "Paste your Client Secret:",
       });
@@ -210,7 +154,7 @@ export class GoogleAuthProvider {
   }
 
   /**
-   * Pings Google's tokeninfo endpoint to verify the Client ID exists
+   * TODO: Pings Google's tokeninfo endpoint to verify the Client ID exists
    */
   private async validateCredentials(clientId: string): Promise<boolean> {
     const s = spinner();
@@ -418,7 +362,7 @@ class Orchestrator {
         log.step("Google OAuth Setup");
         const googleOauthCallback = await text({
           message: "Enter the Google OAuth callback URL:",
-          placeholder: "https://example.com/oauth/callback",
+          placeholder: "https://localhost:3000/oauth/callback/google",
           defaultValue: `http://localhost:3000/oauth/callback/google`,
         });
         if (isCancel(googleOauthCallback)) {
@@ -431,7 +375,7 @@ class Orchestrator {
         log.step("GitHub OAuth Setup");
         const githubOauthCallback = await text({
           message: "Enter the GitHub OAuth callback URL:",
-          placeholder: "https://example.com/oauth/callback",
+          placeholder: "http://localhost:3000/oauth/callback/github",
           defaultValue: `http://localhost:3000/oauth/callback/github`,
         });
         if (isCancel(githubOauthCallback)) {
