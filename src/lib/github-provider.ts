@@ -1,8 +1,6 @@
 import { execa } from "execa";
 import { log, spinner, select, text, password, isCancel, cancel, note } from "@clack/prompts";
 import open from "open";
-import { writeFile, unlink } from "fs/promises";
-import path from "path";
 import http from "http";
 import { OAuthProvider, SaveOption } from "../types.js";
 import { saveCredentials } from "./save-credentials.js";
@@ -53,7 +51,6 @@ export class GitHubAuthProvider implements OAuthProvider {
 
     const PORT = 3004;
     const REDIRECT_URI = `http://localhost:${PORT}/callback`;
-    const tempPath = path.join(process.cwd(), "github-setup.html");
 
     const manifest = {
       name: "oauth-init-app",
@@ -78,67 +75,59 @@ export class GitHubAuthProvider implements OAuthProvider {
         </html>
       `;
 
-    try {
-      await writeFile(tempPath, htmlContent);
+    logStep("GitHub App Configuration");
+    logMessage("Opening GitHub with your manifest...");
 
-      logStep("GitHub App Configuration");
-      logMessage("Opening GitHub with your manifest...");
-      if (!globalConfig.noOpen) {
-        await open(tempPath);
-      }
+    return new Promise((resolve) => {
+      const server = http
+        .createServer(async (req, res) => {
+          const url = new URL(req.url!, `http://localhost:${PORT}`);
+          const code = url.searchParams.get("code");
 
-      return new Promise((resolve) => {
-        const server = http
-          .createServer(async (req, res) => {
-            const url = new URL(req.url!, `http://localhost:${PORT}`);
-            const code = url.searchParams.get("code");
+          if (code) {
+            res.end(
+              "<h1>Success!</h1><p>You can close this tab and return to the CLI.</p>",
+            );
 
-            if (code) {
-              res.end(
-                "<h1>Success!</h1><p>You can close this tab and return to the CLI.</p>",
+            const s = spinner();
+            s.start("Exchanging code for secrets...");
+
+            try {
+              const { stdout } = await execa("curl", [
+                "-X",
+                "POST",
+                `https://api.github.com/app-manifests/${code}/conversions`,
+              ]);
+
+              const credentials = JSON.parse(stdout);
+              const { client_id, client_secret } = credentials;
+
+              s.stop("Credentials received!");
+
+              await saveCredentials(
+                client_id,
+                client_secret,
+                "github",
+                saveOption as SaveOption
               );
-
-              const s = spinner();
-              s.start("Exchanging code for secrets...");
-
-              try {
-                const { stdout } = await execa("curl", [
-                  "-X",
-                  "POST",
-                  `https://api.github.com/app-manifests/${code}/conversions`,
-                ]);
-
-                const credentials = JSON.parse(stdout);
-                const { client_id, client_secret } = credentials;
-
-                s.stop("Credentials received!");
-
-                await saveCredentials(
-                  client_id,
-                  client_secret,
-                  "github",
-                  saveOption as SaveOption
-                );
-                server.close();
-                resolve();
-              } catch {
-                s.error("Failed to convert manifest code.");
-                server.close();
-                resolve();
-              }
+              server.close();
+              resolve();
+            } catch {
+              s.error("Failed to convert manifest code.");
+              server.close();
+              resolve();
             }
-          })
-          .listen(PORT);
-      });
-    } catch (err) {
-      log.error(`Setup failed: ${(err as Error).message}`);
-    } finally {
-      try {
-        await unlink(tempPath);
-      } catch {
-        // File may not exist
-      }
-    }
+          } else {
+            res.writeHead(200, { "Content-Type": "text/html" });
+            res.end(htmlContent);
+          }
+        })
+        .listen(PORT, async () => {
+          if (!globalConfig.noOpen) {
+            await open(REDIRECT_URI);
+          }
+        });
+    });
   }
 
   private async setupOAuthApp(callbackUrl: string): Promise<void> {
