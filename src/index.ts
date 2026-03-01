@@ -12,14 +12,73 @@ import {
   select,
   multiselect,
   password,
+  confirm,
 } from "@clack/prompts";
 import open from "open";
 import { writeFile, access, readFile, unlink } from "fs/promises";
 import path from "path";
 import http from "http";
 
+const globalConfig = {
+  quiet: false,
+  noOpen: false,
+};
+
+type SaveOption = "dot-env" | "dot-env-dot-local" | "json" | "print";
+
+async function saveCredentials(
+  clientId: string,
+  clientSecret: string,
+  provider: "google" | "github",
+  saveOption: SaveOption
+): Promise<void> {
+  const envKeyId = `${provider.toUpperCase()}_CLIENT_ID`;
+  const envKeySecret = `${provider.toUpperCase()}_CLIENT_SECRET`;
+  const newEnvContent = `${envKeyId}=${clientId}\n${envKeySecret}=${clientSecret}`;
+
+  if (saveOption === "print") {
+    log.message(newEnvContent);
+    log.success("Credentials printed to console");
+    return;
+  }
+
+  if (saveOption === "json") {
+    const jsonContent = JSON.stringify(
+      { clientId, clientSecret },
+      null,
+      2
+    );
+    const jsonPath = `${provider}-credentials.json`;
+    await writeFile(jsonPath, jsonContent);
+    log.success(`Credentials saved to ${jsonPath}`);
+    return;
+  }
+
+  const envPath = saveOption === "dot-env" ? ".env" : ".env.local";
+
+  try {
+    await access(envPath);
+    const shouldAppend = await confirm({
+      message: `${envPath} already exists. Append credentials?`,
+      initialValue: true,
+    });
+
+    if (isCancel(shouldAppend) || !shouldAppend) {
+      log.warn("Credentials not saved.");
+      return;
+    }
+
+    const existingContent = await readFile(envPath, "utf-8");
+    await writeFile(envPath, existingContent + "\n" + newEnvContent);
+  } catch {
+    await writeFile(envPath, newEnvContent);
+  }
+
+  log.success(`Credentials saved to ${envPath}`);
+}
+
 export class GoogleAuthProvider {
-  async run(appName: string) {
+  async run(_appName: string) {
     try {
       // 1. Get Project ID from current gcloud context
       const googleLoading = spinner();
@@ -63,7 +122,9 @@ export class GoogleAuthProvider {
         `Google requires manual setup for personal projects.\nOpening: ${brandUrl}`,
       );
 
-      await open(brandUrl);
+      if (!globalConfig.noOpen) {
+        await open(brandUrl);
+      }
       note(
         "1. Choose 'External'\n2. Fill App Name & Email\n3. Click 'Save and Continue' through to the end.",
         "Action Required",
@@ -80,7 +141,9 @@ export class GoogleAuthProvider {
       const clientUrl = `https://console.cloud.google.com/apis/credentials/oauthclient?project=${projectId}`;
       log.message(`Opening: ${clientUrl}`);
 
-      await open(clientUrl);
+      if (!globalConfig.noOpen) {
+        await open(clientUrl);
+      }
       note(
         "1. Select 'Web Application'\n2. Add your Redirect URIs\n3. Click 'Create'",
         "Action Required",
@@ -97,14 +160,20 @@ export class GoogleAuthProvider {
       });
       if (isCancel(clientId)) return cancel("Setup aborted.");
 
+      // const isValid = await this.validateCredentials(clientId);
+      // if (!isValid) {
+      //   log.error("Invalid Client ID. Please check and try again.");
+      //   return cancel("Setup aborted.");
+      // }
+
       const clientSecret = await password({
         message: "Paste your Client Secret:",
       });
       if (isCancel(clientSecret)) return cancel("Setup aborted.");
 
-      // HERE
-      log.step("Step 3: Save credentials to a file");
-      const saveOption = await select({
+      // 5. Step Four: Save credentials
+      log.step("Step 3: Save credentials");
+      const saveOption = await select<SaveOption>({
         message: "Where do you want to save the credentials?",
         options: [
           {
@@ -125,16 +194,15 @@ export class GoogleAuthProvider {
           },
         ],
       });
-      const envPath = saveOption === "dot-env" ? ".env" : ".env.local";
-      const newEnvContent = `GOOGLE_CLIENT_ID=${clientId}\nGOOGLE_CLIENT_SECRET=${clientSecret}`;
-      try {
-        await access(envPath);
-        const existingContent = await readFile(envPath, "utf-8");
-        await writeFile(envPath, existingContent + "\n" + newEnvContent);
-      } catch {
-        await writeFile(envPath, newEnvContent);
-      }
-      // 5. Final Validation
+
+      if (isCancel(saveOption)) return cancel("Setup aborted.");
+
+      await saveCredentials(
+        clientId,
+        clientSecret,
+        "google",
+        saveOption as SaveOption
+      );
     } catch (err: any) {
       log.error(`Setup Failed: ${err.message}`);
       process.exit(1);
@@ -148,12 +216,16 @@ export class GoogleAuthProvider {
     const s = spinner();
     s.start("Verifying Client ID with Google...");
     try {
-      // This public endpoint lets us verify a Client ID without a secret
       const res = await fetch(
         `https://oauth2.googleapis.com/tokeninfo?client_id=${clientId}`,
       );
-      s.stop("Client ID verified.");
-      return res.status !== 400;
+      const isValid = res.status === 200;
+      if (isValid) {
+        s.stop("Client ID verified.");
+      } else {
+        s.stop("Invalid Client ID.");
+      }
+      return isValid;
     } catch {
       s.stop("Validation service unreachable.");
       return false;
@@ -161,205 +233,248 @@ export class GoogleAuthProvider {
   }
 }
 
-class Orchestrator {
-  private projectname: string;
+export class GitHubAuthProvider {
+  async run(callbackUrl: string) {
+    try {
+      const appType = await select({
+        message: "What type of GitHub app you want to create?",
+        options: [
+          {
+            value: "gh-app",
+            label: "GitHub App (One click setup)",
+          },
+          {
+            value: "oauth-app",
+            label: "OAuth App (You need to fill a form for this)",
+          },
+        ],
+      });
 
-  constructor(proejctName: string) {
-    this.projectname = proejctName;
+      if (isCancel(appType)) return cancel("Setup aborted.");
+
+      if (appType === "gh-app") {
+        await this.setupGitHubApp(callbackUrl);
+      } else if (appType === "oauth-app") {
+        await this.setupOAuthApp(callbackUrl);
+      }
+    } catch (err: any) {
+      log.error(`Setup Failed: ${err.message}`);
+      process.exit(1);
+    }
   }
+
+  private async setupGitHubApp(callbackUrl: string): Promise<void> {
+    const saveOption = await this.askSaveOption();
+    if (isCancel(saveOption)) return cancel("Setup aborted.");
+
+    const PORT = 3001;
+    const REDIRECT_URI = `http://localhost:${PORT}/callback`;
+
+    const manifest = {
+      name: "oauth-init-app",
+      url: "http://localhost:3000",
+      callback_url: callbackUrl,
+      public: false,
+      default_permissions: {
+        contents: "read",
+        metadata: "read",
+      },
+      redirect_url: REDIRECT_URI,
+    };
+
+    const htmlContent = `
+        <html>
+          <body>
+            <form id="gh-form" action="https://github.com/settings/apps/new" method="post">
+              <input type="hidden" name="manifest" value='${JSON.stringify(manifest)}'>
+            </form>
+            <script>document.getElementById("gh-form").submit();</script>
+          </body>
+        </html>
+      `;
+
+    const tempPath = path.join(process.cwd(), "github-setup.html");
+    await writeFile(tempPath, htmlContent);
+
+    log.step("GitHub App Configuration");
+    log.message("Opening GitHub with your manifest...");
+    if (!globalConfig.noOpen) {
+      await open(tempPath);
+    }
+
+    return new Promise((resolve) => {
+      const server = http
+        .createServer(async (req, res) => {
+          const url = new URL(req.url!, `http://localhost:${PORT}`);
+          const code = url.searchParams.get("code");
+
+          if (code) {
+            res.end(
+              "<h1>Success!</h1><p>You can close this tab and return to the CLI.</p>",
+            );
+
+            const s = spinner();
+            s.start("Exchanging code for secrets...");
+
+            try {
+              const { stdout } = await execa("curl", [
+                "-X",
+                "POST",
+                `https://api.github.com/app-manifests/${code}/conversions`,
+              ]);
+
+              const credentials = JSON.parse(stdout);
+              const { client_id, client_secret } = credentials;
+
+              s.stop("Credentials received!");
+
+              await unlink(tempPath);
+
+              await saveCredentials(
+                client_id,
+                client_secret,
+                "github",
+                saveOption as SaveOption
+              );
+              server.close();
+              resolve();
+            } catch {
+              s.error("Failed to convert manifest code.");
+              server.close();
+              resolve();
+            }
+          }
+        })
+        .listen(PORT);
+    });
+  }
+
+  private async setupOAuthApp(callbackUrl: string): Promise<void> {
+    log.step("Step 1: Create OAuth App on GitHub");
+    const oauthAppUrl = "https://github.com/settings/applications/new";
+    log.message(`Opening: ${oauthAppUrl}`);
+    if (!globalConfig.noOpen) {
+      await open(oauthAppUrl);
+    }
+    note(
+      "1. Fill Application Name and Homepage URL\n2. Enter Authorization callback URL: " +
+        callbackUrl +
+        "\n3. Click 'Register application'",
+      "Action Required",
+    );
+
+    const brandDone = await text({
+      message:
+        "Press Enter once you've created the OAuth App (or type 'skip' if done previously)",
+    });
+    if (isCancel(brandDone)) return cancel("Setup aborted.");
+
+    log.step("Step 2: Save credentials");
+    const clientId = await text({
+      message: "Paste your Client ID:",
+      placeholder: "Iv1.xxx",
+    });
+    if (isCancel(clientId)) return cancel("Setup aborted.");
+
+    const clientSecret = await password({
+      message: "Paste your Client Secret:",
+    });
+    if (isCancel(clientSecret)) return cancel("Setup aborted.");
+
+    const saveOption = await this.askSaveOption();
+    if (isCancel(saveOption)) return cancel("Setup aborted.");
+
+    await saveCredentials(
+      clientId,
+      clientSecret,
+      "github",
+      saveOption as SaveOption
+    );
+  }
+
+  private async askSaveOption(): Promise<SaveOption | symbol> {
+    return select<SaveOption>({
+      message: "Where do you want to save the credentials?",
+      options: [
+        { label: ".env", value: "dot-env" },
+        { label: ".env.local", value: "dot-env-dot-local" },
+        { label: ".json", value: "json" },
+        { label: "print to the console", value: "print" },
+      ],
+    });
+  }
+}
+
+class Orchestrator {
+  private projectName: string;
+
+  constructor(projectName: string) {
+    this.projectName = projectName;
+  }
+
   async setupOAuthServices(oauthServices: string[]): Promise<void> {
     for (const service of oauthServices) {
       if (service === "google") {
-        log.step("Google Oauth Setup");
+        log.step("Google OAuth Setup");
         const googleOauthCallback = await text({
           message: "Enter the Google OAuth callback URL:",
           placeholder: "https://example.com/oauth/callback",
           defaultValue: `http://localhost:3000/oauth/callback/google`,
         });
-        await this.setupGoogleOAuth(googleOauthCallback.toString());
+        if (isCancel(googleOauthCallback)) {
+          cancel("Setup aborted.");
+          return;
+        }
+        const googleProvider = new GoogleAuthProvider();
+        await googleProvider.run(googleOauthCallback as string);
       } else if (service === "github") {
-        log.step("Github Oauth Setup");
+        log.step("GitHub OAuth Setup");
         const githubOauthCallback = await text({
-          message: "Enter the Github OAuth callback URL:",
+          message: "Enter the GitHub OAuth callback URL:",
           placeholder: "https://example.com/oauth/callback",
           defaultValue: `http://localhost:3000/oauth/callback/github`,
         });
-        await this.setupGithubOAuth(githubOauthCallback.toString());
+        if (isCancel(githubOauthCallback)) {
+          cancel("Setup aborted.");
+          return;
+        }
+        const githubProvider = new GitHubAuthProvider();
+        await githubProvider.run(githubOauthCallback as string);
       }
     }
 
     outro("OAuth setup completed! Thank you for using oauth-init client!");
   }
-
-  private async setupGoogleOAuth(callbackUrl: string): Promise<void> {
-    const googleAuthProvider = new GoogleAuthProvider();
-    await googleAuthProvider.run(callbackUrl);
-  }
-
-  private async setupGithubOAuth(callbackUrl: string): Promise<void> {
-    const appType = await select({
-      message: "What type of github app you want to create?",
-      options: [
-        {
-          value: "gh-app",
-          label: "Github App (One click setup)",
-        },
-        {
-          value: "oauth-app",
-          label: "OAuth App (You need to fill a form for this)",
-        },
-      ],
-    });
-
-    if (appType === "gh-app") {
-      const PORT = 3001;
-      const REDIRECT_URI = `http://localhost:${PORT}/callback`;
-
-      const manifest = {
-        name: "superblogger",
-        url: "http://localhost:3000",
-        callback_url: callbackUrl,
-        public: false,
-        default_permissions: {
-          contents: "read",
-          metadata: "read",
-        },
-        redirect_url: REDIRECT_URI,
-      };
-
-      // 1. Create a temporary HTML file to auto-submit the POST request
-      // This bypasses URL length limits and ensures GitHub parses the JSON correctly
-      const htmlContent = `
-          <html>
-            <body>
-              <form id="gh-form" action="https://github.com/settings/apps/new" method="post">
-                <input type="hidden" name="manifest" value='${JSON.stringify(manifest)}'>
-              </form>
-              <script>document.getElementById("gh-form").submit();</script>
-            </body>
-          </html>
-        `;
-
-      const tempPath = path.join(process.cwd(), "github-setup.html");
-      await writeFile(tempPath, htmlContent);
-
-      log.step("GitHub App Configuration");
-      log.message("Opening GitHub with your manifest...");
-      await open(tempPath);
-      return new Promise((resolve) => {
-        const server = http
-          .createServer(async (req, res) => {
-            const url = new URL(req.url!, `http://localhost:${PORT}`);
-            const code = url.searchParams.get("code");
-
-            if (code) {
-              res.end(
-                "<h1>Success!</h1><p>You can close this tab and return to the CLI.</p>",
-              );
-
-              const s = spinner();
-              s.start("Exchanging code for secrets...");
-
-              try {
-                // 3. Exchange the code for actual credentials
-                const { stdout } = await execa("curl", [
-                  "-X",
-                  "POST",
-                  `https://api.github.com/app-manifests/${code}/conversions`,
-                ]);
-
-                const credentials = JSON.parse(stdout);
-                const { client_id, client_secret } = credentials;
-
-                s.stop("Credentials received!");
-
-                // Clean up temp file
-                await unlink(tempPath);
-
-                // Final Step: Save to .env (Reusing your logic)
-                const newEnvContent = `GITHUB_CLIENT_ID=${client_id}\nGITHUB_CLIENT_SECRET=${client_secret}\n`;
-                await writeFile(".env", newEnvContent, { flag: "a" });
-
-                log.success("GitHub credentials saved to .env");
-                server.close();
-                resolve();
-              } catch (err) {
-                s.error("Failed to convert manifest code.");
-                server.close();
-                resolve();
-              }
-            }
-          })
-          .listen(PORT);
-      });
-    }
-
-    if (appType === "oauth-app") {
-      log.step("Step 1: Create OAuth App on GitHub");
-      const oauthAppUrl = "https://github.com/settings/applications/new";
-      log.message(`Opening: ${oauthAppUrl}`);
-      await open(oauthAppUrl);
-      note(
-        "1. Fill Application Name and Homepage URL\n2. Enter Authorization callback URL: " +
-          callbackUrl +
-          "\n3. Click 'Register application'",
-        "Action Required",
-      );
-
-      const brandDone = await text({
-        message:
-          "Press Enter once you've created the OAuth App (or type 'skip' if done previously)",
-      });
-      if (isCancel(brandDone)) return cancel("Setup aborted.");
-
-      log.step("Step 2: Save credentials");
-      const clientId = await text({
-        message: "Paste your Client ID:",
-        placeholder: "Iv1.xxx",
-      });
-      if (isCancel(clientId)) return cancel("Setup aborted.");
-
-      const clientSecret = await password({
-        message: "Paste your Client Secret:",
-      });
-      if (isCancel(clientSecret)) return cancel("Setup aborted.");
-
-      const saveOption = await select({
-        message: "Where do you want to save the credentials?",
-        options: [
-          {
-            label: ".env",
-            value: "dot-env",
-          },
-          {
-            label: ".env.local",
-            value: "dot-env-dot-local",
-          },
-          {
-            label: ".json",
-            value: "json",
-          },
-          {
-            label: "print to the console",
-            value: "print",
-          },
-        ],
-      });
-      const envPath = saveOption === "dot-env" ? ".env" : ".env.local";
-      const newEnvContent = `GITHUB_CLIENT_ID=${clientId}\nGITHUB_CLIENT_SECRET=${clientSecret}`;
-      try {
-        await access(envPath);
-        const existingContent = await readFile(envPath, "utf-8");
-        await writeFile(envPath, existingContent + "\n" + newEnvContent);
-      } catch {
-        await writeFile(envPath, newEnvContent);
-      }
-      log.success("GitHub OAuth App credentials saved!");
-    }
-  }
 }
 
 async function main() {
+  const args = process.argv.slice(2);
+  const flags = {
+    help: args.includes("--help") || args.includes("-h"),
+    quiet: args.includes("--quiet") || args.includes("-q"),
+    noOpen: args.includes("--no-open") || args.includes("-n"),
+  };
+
+  if (flags.help) {
+    console.log(`
+Usage: oauth-init [options]
+
+Options:
+  -h, --help     Show this help message
+  -q, --quiet    Reduce output verbosity
+  -n, --no-open  Don't open browser URLs automatically
+
+Examples:
+  oauth-init              # Run interactive setup
+  oauth-init --quiet       # Run with minimal output
+  oauth-init --no-open     # Get URLs but don't open them
+`);
+    process.exit(0);
+  }
+
+  globalConfig.quiet = flags.quiet;
+  globalConfig.noOpen = flags.noOpen;
+
   const projectDirectoryName = path.basename(process.cwd());
   intro(`
   ▗▄▖  ▗▄▖ ▗▖ ▗▖▗▄▄▄▖▗▖ ▗▖    ▗▄▄▄▖▗▖  ▗▖▗▄▄▄▖▗▄▄▄▖
@@ -393,7 +508,9 @@ async function main() {
 
   const orchestrator = new Orchestrator(
     projectName as string,
-  ).setupOAuthServices(oauthToSetup as string[]);
+  );
+  await orchestrator.setupOAuthServices(oauthToSetup as string[]);
+  process.exit(0);
 }
 
 main();
