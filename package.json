@@ -1,6 +1,6 @@
 {
   "name": "oauth-init",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "CLI for setting up OAuth providers for your project",
   "license": "MIT",
   "type": "module",
