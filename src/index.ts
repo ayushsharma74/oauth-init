@@ -25,11 +25,60 @@ const globalConfig = {
   noOpen: false,
 };
 
+async function checkGcloudAuth(): Promise<boolean> {
+  const s = spinner();
+  s.start("Checking gcloud CLI...");
+
+  try {
+    await execa("gcloud", ["version"]);
+  } catch {
+    s.stop("gcloud CLI not found.");
+    log.error(
+      "gcloud CLI is required for Google OAuth setup.\n" +
+        "Install it: https://cloud.google.com/sdk/docs/install\n" +
+        "Then run: gcloud auth login"
+    );
+    return false;
+  }
+
+  s.stop("gcloud CLI found.");
+
+  const authSpinner = spinner();
+  authSpinner.start("Checking gcloud authentication...");
+
+  try {
+    const { stdout } = await execa("gcloud", [
+      "auth",
+      "list",
+      "--format=value(account)",
+      "--filter=status:ACTIVE",
+    ]);
+
+    if (!stdout.trim()) {
+      authSpinner.stop("Not authenticated.");
+      log.error("Please run: gcloud auth login");
+      return false;
+    }
+
+    authSpinner.stop(`Authenticated as: ${stdout.trim()}`);
+    return true;
+  } catch {
+    authSpinner.stop("Authentication check failed.");
+    return false;
+  }
+}
+
 
 
 export class GoogleAuthProvider {
   async run(_appName: string) {
     try {
+      const isAuthenticated = await checkGcloudAuth();
+      if (!isAuthenticated) {
+        log.error("Please install gcloud CLI and authenticate before continuing.");
+        process.exit(1);
+      }
+
       // 1. Get Project ID from current gcloud context
       const googleLoading = spinner();
       googleLoading.start("Fetching google cloud projects");
@@ -211,7 +260,7 @@ export class GitHubAuthProvider {
     const saveOption = await this.askSaveOption();
     if (isCancel(saveOption)) return cancel("Setup aborted.");
 
-    const PORT = 3001;
+    const PORT = 3004;
     const REDIRECT_URI = `http://localhost:${PORT}/callback`;
 
     const manifest = {
