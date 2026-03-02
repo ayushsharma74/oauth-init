@@ -1,9 +1,9 @@
 import { cancel, isCancel, log, note, password, text } from "@clack/prompts";
-import { OAuthProvider, SaveOption } from "../types.js";
-import { globalConfig } from "./config.js";
+import { OAuthProvider, SaveOption } from "../../types.js";
+import { globalConfig } from "../config.js";
 import open from "open";
-import { askSaveOption } from "./ask-save-option.js";
-import { saveCredentials } from "./save-credentials.js";
+import { askSaveOption } from "../ask-save-option.js";
+import { saveCredentials } from "../save-credentials.js";
 
 function logStep(message: string) {
   if (!globalConfig.quiet) log.step(message);

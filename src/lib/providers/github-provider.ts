@@ -2,10 +2,10 @@ import { execa } from "execa";
 import { log, spinner, select, text, password, isCancel, cancel, note } from "@clack/prompts";
 import open from "open";
 import http from "http";
-import { OAuthProvider, SaveOption } from "../types.js";
-import { saveCredentials } from "./save-credentials.js";
-import { askSaveOption } from "./ask-save-option.js";
-import { globalConfig } from "./config.js";
+import { OAuthProvider, SaveOption } from "../../types.js";
+import { saveCredentials } from "../save-credentials.js";
+import { askSaveOption } from "../ask-save-option.js";
+import { globalConfig } from "../config.js";
 
 function logStep(message: string) {
   if (!globalConfig.quiet) log.step(message);

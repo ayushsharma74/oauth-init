@@ -10,10 +10,10 @@ import {
 } from "@clack/prompts";
 import path from "path";
 import fs from "fs";
-import { GoogleAuthProvider } from "./lib/google-provider.js";
-import { GitHubAuthProvider } from "./lib/github-provider.js";
+import { GoogleAuthProvider } from "./lib/providers/google-provider.js";
+import { GitHubAuthProvider } from "./lib/providers/github-provider.js";
 import { globalConfig } from "./lib/config.js";
-import { DiscordAuthProvider } from "./lib/discord-provider.js";
+import { DiscordAuthProvider } from "./lib/providers/discord-provider.js";
 
 interface AuthLibrary {
   name: string;
