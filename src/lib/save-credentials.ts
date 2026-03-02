@@ -5,7 +5,7 @@ import { SaveOption } from "../types.js";
 export async function saveCredentials(
   clientId: string,
   clientSecret: string,
-  provider: "google" | "github",
+  provider: "google" | "github" | "discord",
   saveOption: SaveOption,
 ): Promise<void> {
   const envKeyId = `${provider.toUpperCase()}_CLIENT_ID`;

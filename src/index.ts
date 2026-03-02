@@ -13,6 +13,7 @@ import fs from "fs";
 import { GoogleAuthProvider } from "./lib/google-provider.js";
 import { GitHubAuthProvider } from "./lib/github-provider.js";
 import { globalConfig } from "./lib/config.js";
+import { DiscordAuthProvider } from "./lib/discord-provider.js";
 
 interface AuthLibrary {
   name: string;
@@ -104,6 +105,19 @@ async function setupOAuthServices(oauthServices: string[]): Promise<void> {
       }
       const githubProvider = new GitHubAuthProvider();
       await githubProvider.run(githubOauthCallback as string);
+    } else if (service === "discord") {
+      log.step("Discord OAuth Setup");
+      const discordOauthCallback = await text({
+        message: "Enter the Discord OAuth callback URL:",
+        placeholder: defaultCallback,
+        defaultValue: defaultCallback,
+      });
+      if (isCancel(discordOauthCallback)) {
+        cancel("Setup aborted.");
+        return;
+      }
+      const discordProvider = new DiscordAuthProvider();
+      await discordProvider.run(discordOauthCallback as string);
     }
   }
 
@@ -161,6 +175,7 @@ Examples:
     options: [
       { value: "google", label: "Google" },
       { value: "github", label: "Github" },
+      { value: "discord", label: "Discord" },
     ],
   });
 
