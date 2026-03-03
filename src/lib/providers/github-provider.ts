@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { log, spinner, select, text, password, isCancel, cancel, note } from "@clack/prompts";
+import { log, spinner, select, text, password, isCancel, cancel, note, confirm } from "@clack/prompts";
 import open from "open";
 import http from "http";
 import { OAuthProvider, SaveOption } from "../../types.js";
@@ -134,23 +134,41 @@ export class GitHubAuthProvider implements OAuthProvider {
     logStep("Step 1: Create OAuth App on GitHub");
     const oauthAppUrl = "https://github.com/settings/applications/new";
     logMessage(`Opening: ${oauthAppUrl}`);
-    if (!globalConfig.noOpen) {
-      await open(oauthAppUrl);
-    }
+
     note(
-      "1. Fill Application Name and Homepage URL\n2. Enter Authorization callback URL: " +
-        callbackUrl +
-        "\n3. Click 'Register application'",
-      "Action Required",
+      `Required Authorization callback URL:\n${callbackUrl}`,
+      "Save this URL",
     );
 
-    const brandDone = await text({
-      message:
-        "Press Enter once you've created the OAuth App (or type 'skip' if done previously)",
-    });
-    if (isCancel(brandDone)) return cancel("Setup aborted.");
+    if (!globalConfig.noOpen) {
+      const shouldOpen = globalConfig.skipPrompts ? true : await confirm({
+        message: "Open GitHub OAuth App page?",
+        initialValue: true,
+      });
+      if (isCancel(shouldOpen)) return cancel("Setup aborted.");
+      if (shouldOpen) await open(oauthAppUrl);
+    }
+
+    if (!globalConfig.skipPrompts) {
+      note(
+        "1. Fill Application Name and Homepage URL\n2. Enter Authorization callback URL\n3. Click 'Register application'",
+        "Action Required",
+      );
+
+      const brandDone = await text({
+        message:
+          "Press Enter once you've created the OAuth App (or type 'skip' if done previously)",
+      });
+      if (isCancel(brandDone)) return cancel("Setup aborted.");
+    }
 
     logStep("Step 2: Save credentials");
+
+    if (globalConfig.skipPrompts) {
+      log.error("Client ID and Secret required in non-interactive mode. Run without --skip-prompts");
+      process.exit(1);
+    }
+
     const clientId = await text({
       message: "Paste your Client ID:",
       placeholder: "Iv1.xxx",

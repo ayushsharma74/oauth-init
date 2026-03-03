@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { log, spinner, select, text, password, isCancel, cancel, note } from "@clack/prompts";
+import { log, spinner, select, text, password, isCancel, cancel, note, confirm } from "@clack/prompts";
 import open from "open";
 import { OAuthProvider, SaveOption } from "../../types.js";
 import { saveCredentials } from "../save-credentials.js";
@@ -116,33 +116,67 @@ export class GoogleAuthProvider implements OAuthProvider {
         `Google requires manual setup for personal projects.\nOpening: ${brandUrl}`,
       );
 
-      if (!globalConfig.noOpen) {
-        await open(brandUrl);
-      }
       note(
-        "1. Choose 'External'\n2. Fill App Name & Email\n3. Click 'Save and Continue' through to the end.",
-        "Action Required",
+        `Required Redirect URI:\n${_appName}`,
+        "Save this URL",
       );
 
-      const brandDone = await text({
-        message:
-          "Press Enter once you've saved the Consent Screen (or type 'skip' if done previously)",
-      });
-      if (isCancel(brandDone)) return cancel("Setup aborted.");
+      if (!globalConfig.noOpen) {
+        const shouldOpen = globalConfig.skipPrompts ? true : await confirm({
+          message: "Open Google Cloud Console?",
+          initialValue: true,
+        });
+        if (isCancel(shouldOpen)) return cancel("Setup aborted.");
+        if (shouldOpen) await open(brandUrl);
+      }
+
+      if (!globalConfig.skipPrompts) {
+        note(
+          "1. Choose 'External'\n2. Fill App Name & Email\n3. Click 'Save and Continue' through to the end.",
+          "Action Required",
+        );
+
+        const brandDone = await text({
+          message:
+            "Press Enter once you've saved the Consent Screen (or type 'skip' if done previously)",
+        });
+        if (isCancel(brandDone)) return cancel("Setup aborted.");
+      }
 
       logStep("Step 2: Create OAuth Client ID");
       const clientUrl = `https://console.cloud.google.com/apis/credentials/oauthclient?project=${projectId}`;
       logMessage(`Opening: ${clientUrl}`);
 
-      if (!globalConfig.noOpen) {
-        await open(clientUrl);
-      }
       note(
-        "1. Select 'Web Application'\n2. Add your Redirect URIs\n3. Click 'Create'",
-        "Action Required",
+        `Required Redirect URI:\n${_appName}`,
+        "Save this URL",
       );
 
-      const clientId = await text({
+      if (!globalConfig.noOpen) {
+        const shouldOpen = globalConfig.skipPrompts ? true : await confirm({
+          message: "Open OAuth Client creation page?",
+          initialValue: true,
+        });
+        if (isCancel(shouldOpen)) return cancel("Setup aborted.");
+        if (shouldOpen) await open(clientUrl);
+      }
+
+      if (!globalConfig.skipPrompts) {
+        note(
+          "1. Select 'Web Application'\n2. Add your Redirect URIs\n3. Click 'Create'",
+          "Action Required",
+        );
+      }
+
+      let clientId: string;
+      let clientSecret: string;
+
+      if (globalConfig.skipPrompts) {
+        log.error("Client ID and Secret required in non-interactive mode. Run without --skip-prompts");
+        process.exit(1);
+      }
+
+      clientId = await text({
         message: "Paste your Client ID:",
         placeholder: "12345-abcde.apps.googleusercontent.com",
         validate: (value) =>
@@ -152,7 +186,7 @@ export class GoogleAuthProvider implements OAuthProvider {
       });
       if (isCancel(clientId)) return cancel("Setup aborted.");
 
-      const clientSecret = await password({
+      clientSecret = await password({
         message: "Paste your Client Secret:",
       });
       if (isCancel(clientSecret)) return cancel("Setup aborted.");
