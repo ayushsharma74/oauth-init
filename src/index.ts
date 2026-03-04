@@ -10,10 +10,10 @@ import {
 } from "@clack/prompts";
 import path from "path";
 import fs from "fs";
-import { GoogleAuthProvider } from "./lib/providers/google-provider.js";
-import { GitHubAuthProvider } from "./lib/providers/github-provider.js";
+import { GoogleAuthProvider } from "./lib/providers/google.js";
+import { GitHubAuthProvider } from "./lib/providers/github.js";
 import { globalConfig } from "./lib/config.js";
-import { DiscordAuthProvider } from "./lib/providers/discord-provider.js";
+import { DiscordAuthProvider } from "./lib/providers/discord.js";
 
 interface AuthLibrary {
   name: string;
@@ -228,7 +228,7 @@ Examples:
  ▝▚▄▞▘▐▌ ▐▌▝▚▄▞▘  █  ▐▌ ▐▌    ▗▄█▄▖▐▌  ▐▌▗▄█▄▖  █ `);
   }
 
-  let projectName: string;
+  let projectName: string | symbol;
   if (flags.skipPrompts) {
     projectName = projectDirectoryName;
   } else {
@@ -244,7 +244,7 @@ Examples:
     }
   }
 
-  let oauthToSetup: string[];
+  let oauthToSetup: string[] | symbol;
   if (flags.provider) {
     oauthToSetup = flags.provider.split(",").map((p) => p.trim().toLowerCase());
   } else {
