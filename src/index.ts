@@ -62,7 +62,37 @@ function getCallbackUrlPattern(authLibrary: AuthLibrary | null): string {
 
 const DEFAULT_CALLBACK_URL = "http://localhost:3000";
 
-async function setupOAuthServices(oauthServices: string[]): Promise<void> {
+const PROVIDER_HELP: Record<string, string> = {
+  google: `
+Google OAuth Setup:
+  1. Requires a Google Cloud project with OAuth 2.0 configured
+  2. Redirect URI: http://localhost:3000/api/auth/callback/google
+  3. Need: Client ID and Client Secret from Google Cloud Console
+  4. Run: gcloud auth login before starting`,
+  github: `
+GitHub OAuth Setup:
+  1. Creates OAuth App or GitHub App in your org
+  2. Redirect URI: http://localhost:3000/api/auth/callback/github
+  3. Need: Client ID and Client Secret from GitHub Developer Settings`,
+  discord: `
+Discord OAuth Setup:
+  1. Requires Discord Developer Portal setup
+  2. Redirect URI: http://localhost:3000/api/auth/callback/discord
+  3. Need: Client ID and Client Secret from Discord Developer Portal`,
+};
+
+function showProviderHelp(provider: string) {
+  const help = PROVIDER_HELP[provider.toLowerCase()];
+  if (help) {
+    console.log(help);
+    process.exit(0);
+  }
+  console.log(`Unknown provider: ${provider}`);
+  console.log(`Available: ${Object.keys(PROVIDER_HELP).join(", ")}`);
+  process.exit(1);
+}
+
+async function setupOAuthServices(oauthServices: string[], customCallbackUrl?: string): Promise<void> {
   const authLibrary = detectAuthLibrary();
   const callbackPattern = getCallbackUrlPattern(authLibrary);
 
@@ -72,20 +102,24 @@ async function setupOAuthServices(oauthServices: string[]): Promise<void> {
     log.info("No known auth library detected, using generic callback pattern");
   }
 
+  const baseCallbackUrl = customCallbackUrl || DEFAULT_CALLBACK_URL;
+
   for (const service of oauthServices) {
     const providerCallback = callbackPattern.replace(
       "[provider]",
       service
     );
-    const defaultCallback = `${DEFAULT_CALLBACK_URL}${providerCallback}`;
+    const defaultCallback = `${baseCallbackUrl}${providerCallback}`;
 
     if (service === "google") {
       log.step("Google OAuth Setup");
-      const googleOauthCallback = await text({
-        message: "Enter the Google OAuth callback URL:",
-        placeholder: defaultCallback,
-        defaultValue: defaultCallback,
-      });
+      const googleOauthCallback = globalConfig.skipPrompts
+        ? defaultCallback
+        : await text({
+            message: "Enter the Google OAuth callback URL:",
+            placeholder: defaultCallback,
+            defaultValue: defaultCallback,
+          });
       if (isCancel(googleOauthCallback)) {
         cancel("Setup aborted.");
         return;
@@ -94,11 +128,13 @@ async function setupOAuthServices(oauthServices: string[]): Promise<void> {
       await googleProvider.run(googleOauthCallback as string);
     } else if (service === "github") {
       log.step("GitHub OAuth Setup");
-      const githubOauthCallback = await text({
-        message: "Enter the GitHub OAuth callback URL:",
-        placeholder: defaultCallback,
-        defaultValue: defaultCallback,
-      });
+      const githubOauthCallback = globalConfig.skipPrompts
+        ? defaultCallback
+        : await text({
+            message: "Enter the GitHub OAuth callback URL:",
+            placeholder: defaultCallback,
+            defaultValue: defaultCallback,
+          });
       if (isCancel(githubOauthCallback)) {
         cancel("Setup aborted.");
         return;
@@ -107,11 +143,13 @@ async function setupOAuthServices(oauthServices: string[]): Promise<void> {
       await githubProvider.run(githubOauthCallback as string);
     } else if (service === "discord") {
       log.step("Discord OAuth Setup");
-      const discordOauthCallback = await text({
-        message: "Enter the Discord OAuth callback URL:",
-        placeholder: defaultCallback,
-        defaultValue: defaultCallback,
-      });
+      const discordOauthCallback = globalConfig.skipPrompts
+        ? defaultCallback
+        : await text({
+            message: "Enter the Discord OAuth callback URL:",
+            placeholder: defaultCallback,
+            defaultValue: defaultCallback,
+          });
       if (isCancel(discordOauthCallback)) {
         cancel("Setup aborted.");
         return;
@@ -130,61 +168,103 @@ async function main() {
     help: args.includes("--help") || args.includes("-h"),
     quiet: args.includes("--quiet") || args.includes("-q"),
     noOpen: args.includes("--no-open") || args.includes("-n"),
+    skipPrompts: args.includes("--skip-prompts") || args.includes("-y"),
+    provider: args.find((arg) => arg.startsWith("--provider="))?.split("=")[1] ||
+      args.find((arg) => arg.startsWith("-p="))?.split("=")[1],
+    callbackUrl: args.find((arg) => arg.startsWith("--callback-url="))?.split("=")[1] ||
+      args.find((arg) => arg.startsWith("-c="))?.split("=")[1],
   };
+
+  const providerArg = args.find((arg) => !arg.startsWith("-"));
+  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord")) {
+    showProviderHelp(providerArg);
+  }
 
   if (flags.help) {
     console.log(`
-Usage: oauth-init [options]
+Usage: oauth-init [options] [provider]
 
 Options:
-  -h, --help     Show this help message
-  -q, --quiet    Reduce output verbosity
-  -n, --no-open  Don't open browser URLs automatically
+  -h, --help             Show this help message
+  -q, --quiet            Reduce output verbosity
+  -n, --no-open          Don't open browser URLs automatically
+  -y, --skip-prompts     Use default options (for CI/CD)
+  -p, --provider=        Specify providers (comma-separated): google,github,discord
+  -c, --callback-url=   Base callback URL (default: http://localhost:3000)
 
 Examples:
-  oauth-init              # Run interactive setup
-  oauth-init --quiet       # Run with minimal output
-  oauth-init --no-open     # Get URLs but don't open them
+  oauth-init                        # Run interactive setup
+  oauth-init --provider=google      # Setup only Google
+  oauth-init --provider=google,github  # Setup Google and GitHub
+  oauth-init --no-open              # Get URLs but don't open them
+  oauth-init --quiet -y             # Minimal output, use defaults
+  oauth-init -y -p google -c https://myapp.com  # CI/CD mode
+  oauth-init google                 # Show Google-specific help
 `);
     process.exit(0);
   }
 
+  if (flags.provider) {
+    const validProviders = ["google", "github", "discord"];
+    const providers = flags.provider.split(",").map((p) => p.trim().toLowerCase());
+    const invalid = providers.filter((p) => !validProviders.includes(p));
+    if (invalid.length > 0) {
+      console.error(`Invalid providers: ${invalid.join(", ")}. Valid: ${validProviders.join(", ")}`);
+      process.exit(1);
+    }
+  }
+
   globalConfig.quiet = flags.quiet;
   globalConfig.noOpen = flags.noOpen;
+  globalConfig.skipPrompts = flags.skipPrompts;
 
   const projectDirectoryName = path.basename(process.cwd());
-  intro(`
+
+  if (!flags.quiet) {
+    intro(`
   ▗▄▖  ▗▄▖ ▗▖ ▗▖▗▄▄▄▖▗▖ ▗▖    ▗▄▄▄▖▗▖  ▗▖▗▄▄▄▖▗▄▄▄▖
  ▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌  █  ▐▌ ▐▌      █  ▐▛▚▖▐▌  █    █
  ▐▌ ▐▌▐▛▀▜▌▐▌ ▐▌  █  ▐▛▀▜▌      █  ▐▌ ▝▜▌  █    █
  ▝▚▄▞▘▐▌ ▐▌▝▚▄▞▘  █  ▐▌ ▐▌    ▗▄█▄▖▐▌  ▐▌▗▄█▄▖  █ `);
-
-  const projectName = await text({
-    message: "Enter the name of your project:",
-    placeholder: projectDirectoryName,
-    defaultValue: projectDirectoryName,
-  });
-
-  if (isCancel(projectName)) {
-    cancel("Operation cancelled.");
-    process.exit(0);
   }
 
-  const oauthToSetup = await multiselect({
-    message: "Select OAuth services to setup:",
-    options: [
-      { value: "google", label: "Google" },
-      { value: "github", label: "Github" },
-      { value: "discord", label: "Discord" },
-    ],
-  });
+  let projectName: string;
+  if (flags.skipPrompts) {
+    projectName = projectDirectoryName;
+  } else {
+    projectName = await text({
+      message: "Enter the name of your project:",
+      placeholder: projectDirectoryName,
+      defaultValue: projectDirectoryName,
+    });
 
-  if (isCancel(oauthToSetup)) {
-    cancel("Operation cancelled.");
-    process.exit(0);
+    if (isCancel(projectName)) {
+      cancel("Operation cancelled.");
+      process.exit(0);
+    }
   }
 
-  await setupOAuthServices(oauthToSetup as string[]);
+  let oauthToSetup: string[];
+  if (flags.provider) {
+    oauthToSetup = flags.provider.split(",").map((p) => p.trim().toLowerCase());
+  } else {
+    oauthToSetup = await multiselect({
+      message: "Select OAuth services to setup:",
+      options: [
+        { value: "google", label: "Google" },
+        { value: "github", label: "Github" },
+        { value: "discord", label: "Discord" },
+      ],
+    });
+
+    if (isCancel(oauthToSetup)) {
+      cancel("Operation cancelled.");
+      process.exit(0);
+    }
+    oauthToSetup = oauthToSetup as string[];
+  }
+
+  await setupOAuthServices(oauthToSetup, flags.callbackUrl);
   process.exit(0);
 }
 

@@ -1,7 +1,12 @@
 import { select, isCancel, cancel } from "@clack/prompts";
 import { SaveOption } from "../types.js";
+import { globalConfig } from "./config.js";
 
 export async function askSaveOption(): Promise<SaveOption | symbol> {
+  if (globalConfig.skipPrompts) {
+    return "dot-env";
+  }
+
   return select<SaveOption>({
     message: "Where do you want to save the credentials?",
     options: [

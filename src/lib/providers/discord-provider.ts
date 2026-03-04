@@ -1,4 +1,4 @@
-import { cancel, isCancel, log, note, password, text } from "@clack/prompts";
+import { cancel, isCancel, log, note, password, text, confirm } from "@clack/prompts";
 import { OAuthProvider, SaveOption } from "../../types.js";
 import { globalConfig } from "../config.js";
 import open from "open";
@@ -21,20 +21,36 @@ export class DiscordAuthProvider implements OAuthProvider {
         "https://discord.com/developers/applications?new_app=true";
       logMessage(`Opening Discord Developer Portal: ${portalUrl}`);
 
-      if (!globalConfig.noOpen) {
-        await open(portalUrl);
-      }
-
       note(
-        "1. Click 'New Application' and give it a name.\n" +
-          "2. Go to 'OAuth2' -> 'General' in the sidebar.\n" +
-          "3. Click 'Add Redirect' and paste: " +
-          callbackUrl +
-          "\n4. Click 'Reset Secret' if you don't have a Client Secret",
-        "Action Required",
+        `Required Redirect URI:\n${callbackUrl}`,
+        "Save this URL",
       );
 
+      if (!globalConfig.noOpen) {
+        const shouldOpen = globalConfig.skipPrompts ? true : await confirm({
+          message: "Open Discord Developer Portal?",
+          initialValue: true,
+        });
+        if (isCancel(shouldOpen)) return cancel("Setup aborted.");
+        if (shouldOpen) await open(portalUrl);
+      }
+
+      if (!globalConfig.skipPrompts) {
+        note(
+          "1. Click 'New Application' and give it a name.\n" +
+            "2. Go to 'Overview' -> 'OAuth2' in the sidebar.\n" +
+            "3. Click 'Add Redirect' and paste your callback URL\n4. Click 'Reset Secret' if you don't have a Client Secret",
+          "Action Required",
+        );
+      }
+
       logStep("Step 2: Collect Credentials");
+
+      if (globalConfig.skipPrompts) {
+        log.error("Client ID and Secret required in non-interactive mode. Run without --skip-prompts");
+        process.exit(1);
+      }
+
       const clientId = await text({
         message: "Enter your Discord Client ID:",
         placeholder: "123456789012345678",

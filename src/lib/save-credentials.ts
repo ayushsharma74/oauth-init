@@ -1,6 +1,7 @@
 import { writeFile, readFile, access } from "fs/promises";
 import { log, isCancel, confirm } from "@clack/prompts";
 import { SaveOption } from "../types.js";
+import { globalConfig } from "./config.js";
 
 export async function saveCredentials(
   clientId: string,
@@ -21,6 +22,20 @@ export async function saveCredentials(
   if (saveOption === "json") {
     const jsonContent = JSON.stringify({ clientId, clientSecret }, null, 2);
     const jsonPath = `${provider}-credentials.json`;
+
+    if (!globalConfig.skipPrompts) {
+      log.message("Preview:");
+      log.message(jsonContent);
+      const confirmSave = await confirm({
+        message: `Save to ${jsonPath}?`,
+        initialValue: true,
+      });
+      if (isCancel(confirmSave) || !confirmSave) {
+        log.warn("Credentials not saved.");
+        return;
+      }
+    }
+
     await writeFile(jsonPath, jsonContent);
     log.success(`Credentials saved to ${jsonPath}`);
     return;
@@ -28,9 +43,22 @@ export async function saveCredentials(
 
   const envPath = saveOption === "dot-env" ? ".env" : ".env.local";
 
+  if (!globalConfig.skipPrompts) {
+    log.message("Preview:");
+    log.message(newEnvContent);
+    const confirmSave = await confirm({
+      message: `Save to ${envPath}?`,
+      initialValue: true,
+    });
+    if (isCancel(confirmSave) || !confirmSave) {
+      log.warn("Credentials not saved.");
+      return;
+    }
+  }
+
   try {
     await access(envPath);
-    const shouldAppend = await confirm({
+    const shouldAppend = globalConfig.skipPrompts ? true : await confirm({
       message: `${envPath} already exists. Append credentials?`,
       initialValue: true,
     });
