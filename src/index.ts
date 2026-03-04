@@ -10,10 +10,10 @@ import {
 } from "@clack/prompts";
 import path from "path";
 import fs from "fs";
-import { GoogleAuthProvider } from "./lib/providers/google.js";
-import { GitHubAuthProvider } from "./lib/providers/github.js";
+import { GoogleAuthProvider } from "./lib/providers/google-provider.js";
+import { GitHubAuthProvider } from "./lib/providers/github-provider.js";
 import { globalConfig } from "./lib/config.js";
-import { DiscordAuthProvider } from "./lib/providers/discord.js";
+import { DiscordAuthProvider } from "./lib/providers/discord-provider.js";
 
 interface AuthLibrary {
   name: string;
@@ -228,21 +228,7 @@ Examples:
  ▝▚▄▞▘▐▌ ▐▌▝▚▄▞▘  █  ▐▌ ▐▌    ▗▄█▄▖▐▌  ▐▌▗▄█▄▖  █ `);
   }
 
-<<<<<<< Updated upstream
   let projectName: string;
-=======
-<<<<<<< Updated upstream
-  const oauthToSetup = await multiselect({
-    message: "Select OAuth services to setup:",
-    options: [
-      { value: "google", label: "Google" },
-      { value: "github", label: "Github" },
-      { value: "discord", label: "Discord" },
-    ],
-  });
-=======
-  let projectName: string | symbol;
->>>>>>> Stashed changes
   if (flags.skipPrompts) {
     projectName = projectDirectoryName;
   } else {
@@ -251,10 +237,6 @@ Examples:
       placeholder: projectDirectoryName,
       defaultValue: projectDirectoryName,
     });
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
     if (isCancel(projectName)) {
       cancel("Operation cancelled.");
@@ -262,14 +244,7 @@ Examples:
     }
   }
 
-<<<<<<< Updated upstream
   let oauthToSetup: string[];
-=======
-<<<<<<< Updated upstream
-  await setupOAuthServices(oauthToSetup as string[]);
-=======
-  let oauthToSetup: string[] | symbol;
->>>>>>> Stashed changes
   if (flags.provider) {
     oauthToSetup = flags.provider.split(",").map((p) => p.trim().toLowerCase());
   } else {
@@ -290,10 +265,6 @@ Examples:
   }
 
   await setupOAuthServices(oauthToSetup, flags.callbackUrl);
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
   process.exit(0);
 }
 
