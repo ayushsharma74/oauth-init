@@ -11,7 +11,7 @@ export async function saveCredentials(
 ): Promise<void> {
   const envKeyId = `${provider.toUpperCase()}_CLIENT_ID`;
   const envKeySecret = `${provider.toUpperCase()}_CLIENT_SECRET`;
-  const newEnvContent = `${envKeyId}=${clientId}\n${envKeySecret}=${clientSecret}`;
+  const newEnvContent = `\n${envKeyId}=${clientId}\n${envKeySecret}=${clientSecret}\n`;
 
   if (saveOption === "print") {
     log.message(newEnvContent);
@@ -58,10 +58,23 @@ export async function saveCredentials(
 
   try {
     await access(envPath);
+<<<<<<< Updated upstream
     const shouldAppend = globalConfig.skipPrompts ? true : await confirm({
+=======
+<<<<<<< Updated upstream
+    const shouldAppend = await confirm({
+>>>>>>> Stashed changes
       message: `${envPath} already exists. Append credentials?`,
       initialValue: true,
     });
+=======
+    const shouldAppend = globalConfig.skipPrompts
+      ? true
+      : await confirm({
+          message: `${envPath} already exists. Append credentials?`,
+          initialValue: true,
+        });
+>>>>>>> Stashed changes
 
     if (isCancel(shouldAppend) || !shouldAppend) {
       log.warn("Credentials not saved.");
