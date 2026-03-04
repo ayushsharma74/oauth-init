@@ -168,8 +168,8 @@ export class GoogleAuthProvider implements OAuthProvider {
         );
       }
 
-      let clientId: string;
-      let clientSecret: string;
+      let clientId: string | symbol;
+      let clientSecret: string | symbol;
 
       if (globalConfig.skipPrompts) {
         log.error("Client ID and Secret required in non-interactive mode. Run without --skip-prompts");
