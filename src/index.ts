@@ -15,6 +15,7 @@ import { GitHubAuthProvider } from "./lib/providers/github.js";
 import { globalConfig } from "./lib/config.js";
 import { DiscordAuthProvider } from "./lib/providers/discord.js";
 import { GitLabAuthProvider } from "./lib/providers/gitlab.js";
+import { VercelAuthProvider } from "./lib/providers/vercel.js";
 
 interface AuthLibrary {
   name: string;
@@ -86,6 +87,14 @@ GitLab OAuth Setup:
   2. Redirect URI: http://localhost:3000/api/auth/callback/gitlab
   3. Need: Application ID and Client Secret from GitLab Applications
   4. Supports user-owned, group-owned, or instance-wide apps`,
+  vercel: `
+Vercel OAuth Setup:
+  1. Uses Vercel CLI to list your teams and open the correct settings page
+  2. Requires: npm i -g vercel and vercel login
+  3. Configure Authorization Callback URL: http://localhost:3000/api/auth/callback/vercel
+  4. Generate a Client Secret in your app settings
+  5. Get the Client ID from your app settings
+  6. For better-auth: https://www.better-auth.com/docs/plugins/oauth#vercel`,
 };
 
 function showProviderHelp(provider: string) {
@@ -178,6 +187,21 @@ async function setupOAuthServices(oauthServices: string[], customCallbackUrl?: s
       }
       const gitlabProvider = new GitLabAuthProvider();
       await gitlabProvider.run(gitlabOauthCallback as string);
+    } else if (service === "vercel") {
+      log.step("Vercel OAuth Setup");
+      const vercelOauthCallback = globalConfig.skipPrompts
+        ? defaultCallback
+        : await text({
+            message: "Enter the Vercel OAuth callback URL:",
+            placeholder: defaultCallback,
+            defaultValue: defaultCallback,
+          });
+      if (isCancel(vercelOauthCallback)) {
+        cancel("Setup aborted.");
+        return;
+      }
+      const vercelProvider = new VercelAuthProvider();
+      await vercelProvider.run(vercelOauthCallback as string);
     }
   }
 
@@ -198,7 +222,7 @@ async function main() {
   };
 
   const providerArg = args.find((arg) => !arg.startsWith("-"));
-  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord" || providerArg === "gitlab")) {
+  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord" || providerArg === "gitlab" || providerArg === "vercel")) {
     showProviderHelp(providerArg);
   }
 
@@ -211,7 +235,7 @@ Options:
   -q, --quiet            Reduce output verbosity
   -n, --no-open          Don't open browser URLs automatically
   -y, --skip-prompts     Use default options (for CI/CD)
-  -p, --provider=        Specify providers (comma-separated): google,github,discord
+  -p, --provider=        Specify providers (comma-separated): google,github,discord,gitlab,vercel
   -c, --callback-url=   Base callback URL (default: http://localhost:3000)
 
 Examples:
@@ -227,7 +251,7 @@ Examples:
   }
 
   if (flags.provider) {
-    const validProviders = ["google", "github", "discord", "gitlab"];
+    const validProviders = ["google", "github", "discord", "gitlab", "vercel"];
     const providers = flags.provider.split(",").map((p) => p.trim().toLowerCase());
     const invalid = providers.filter((p) => !validProviders.includes(p));
     if (invalid.length > 0) {
@@ -277,6 +301,7 @@ Examples:
         { value: "github", label: "Github" },
         { value: "discord", label: "Discord" },
         { value: "gitlab", label: "GitLab" },
+        { value: "vercel", label: "Vercel" },
       ],
     });
 
