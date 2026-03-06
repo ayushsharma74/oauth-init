@@ -1,12 +1,12 @@
 import { writeFile, readFile, access } from "fs/promises";
 import { log, isCancel, confirm } from "@clack/prompts";
-import { SaveOption } from "../types.js";
+import { Provider, SaveOption } from "../types.js";
 import { globalConfig } from "./config.js";
 
 export async function saveCredentials(
   clientId: string,
   clientSecret: string,
-  provider: "google" | "github" | "discord",
+  provider: Provider,
   saveOption: SaveOption,
 ): Promise<void> {
   const envKeyId = `${provider.toUpperCase()}_CLIENT_ID`;
@@ -58,10 +58,12 @@ export async function saveCredentials(
 
   try {
     await access(envPath);
-    const shouldAppend = globalConfig.skipPrompts ? true : await confirm({
-      message: `${envPath} already exists. Append credentials?`,
-      initialValue: true,
-    });
+    const shouldAppend = globalConfig.skipPrompts
+      ? true
+      : await confirm({
+          message: `${envPath} already exists. Append credentials?`,
+          initialValue: true,
+        });
 
     if (isCancel(shouldAppend) || !shouldAppend) {
       log.warn("Credentials not saved.");
