@@ -1,6 +1,6 @@
 {
   "name": "oauth-init",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "CLI for setting up OAuth providers for your project",
   "license": "MIT",
   "type": "module",
@@ -27,7 +27,9 @@
     "setup",
     "interactive",
     "bun",
-    "typescript"
+    "typescript",
+    "vercel",
+    "gitlab"
   ],
   "dependencies": {
     "@clack/prompts": "^1.0.1",

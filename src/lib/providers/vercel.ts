@@ -28,8 +28,8 @@ async function checkVercelCLI(): Promise<boolean> {
     s.stop("Vercel CLI not found.");
     log.error(
       "Vercel CLI is required for Vercel OAuth setup.\n" +
-        "Install it: npm i -g vercel\n" +
-        "Then run: vercel login"
+      "Install it: npm i -g vercel\n" +
+      "Then run: vercel login"
     );
     return false;
   }
@@ -61,30 +61,20 @@ async function checkVercelAuth(): Promise<{ authenticated: boolean; user?: strin
 async function getVercelTeams(): Promise<{ name: string; slug: string }[]> {
   const loadingSpinner = spinner();
   loadingSpinner.start("Fetching Vercel teams...");
-
   try {
-    const { stdout, stderr } = await execa("vercel", ["teams", "list"]);
-    const output = stdout + "\n" + stderr;
-    const teams: { name: string; slug: string }[] = [];
-    
-    const lines = output.split("\n").filter((line) => line.trim());
-    for (const line of lines) {
-      if (!line.includes("✔")) continue;
-      const cleaned = line.replace(/^✔\s*/, "");
-      const match = cleaned.match(/^(\S+)\s+(.+)$/);
-      if (match) {
-        const slug = match[1].trim();
-        const name = match[2].trim();
-        if (name && slug) {
-          teams.push({ name, slug });
-        }
-      }
-    }
-    
+    const { stdout, stderr } = await execa("vercel", ["teams", "ls", "--format", "json"]);
+    const teamsJson = JSON.parse(stdout);
+    console.log(teamsJson);
+
+    const teams = teamsJson.teams.map((team: any) => ({
+      name: team.name,
+      slug: team.slug,
+    }));
+
     loadingSpinner.stop("Fetched teams.");
     return teams;
-  } catch {
-    loadingSpinner.stop("No teams found or not a team member.");
+  } catch (stderr) {
+    loadingSpinner.stop("No teams found or not a team member. " + stderr);
     return [];
   }
 }
@@ -105,10 +95,10 @@ export class VercelAuthProvider implements OAuthProvider {
       }
 
       const teams = await getVercelTeams();
-      
-      
+
+
       let selectedTeam: { name: string; slug: string };
-      
+
       if (teams.length === 0) {
         log.error("No teams found. Please ensure you have a Vercel team or personal account.");
         process.exit(1);
@@ -127,7 +117,7 @@ export class VercelAuthProvider implements OAuthProvider {
       }
 
       const teamSlug = selectedTeam.slug;
-      const appsUrl = teamSlug 
+      const appsUrl = teamSlug
         ? `https://vercel.com/${teamSlug}/~/settings/apps/create`
         : `https://vercel.com/settings/apps`;
 
