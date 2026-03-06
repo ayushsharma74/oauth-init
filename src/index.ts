@@ -14,6 +14,7 @@ import { GoogleAuthProvider } from "./lib/providers/google.js";
 import { GitHubAuthProvider } from "./lib/providers/github.js";
 import { globalConfig } from "./lib/config.js";
 import { DiscordAuthProvider } from "./lib/providers/discord.js";
+import { GitLabAuthProvider } from "./lib/providers/gitlab.js";
 
 interface AuthLibrary {
   name: string;
@@ -79,6 +80,12 @@ Discord OAuth Setup:
   1. Requires Discord Developer Portal setup
   2. Redirect URI: http://localhost:3000/api/auth/callback/discord
   3. Need: Client ID and Client Secret from Discord Developer Portal`,
+  gitlab: `
+GitLab OAuth Setup:
+  1. Requires GitLab.com or GitLab Self-Managed
+  2. Redirect URI: http://localhost:3000/api/auth/callback/gitlab
+  3. Need: Application ID and Client Secret from GitLab Applications
+  4. Supports user-owned, group-owned, or instance-wide apps`,
 };
 
 function showProviderHelp(provider: string) {
@@ -156,6 +163,21 @@ async function setupOAuthServices(oauthServices: string[], customCallbackUrl?: s
       }
       const discordProvider = new DiscordAuthProvider();
       await discordProvider.run(discordOauthCallback as string);
+    } else if (service === "gitlab") {
+      log.step("GitLab OAuth Setup");
+      const gitlabOauthCallback = globalConfig.skipPrompts
+        ? defaultCallback
+        : await text({
+            message: "Enter the GitLab OAuth callback URL:",
+            placeholder: defaultCallback,
+            defaultValue: defaultCallback,
+          });
+      if (isCancel(gitlabOauthCallback)) {
+        cancel("Setup aborted.");
+        return;
+      }
+      const gitlabProvider = new GitLabAuthProvider();
+      await gitlabProvider.run(gitlabOauthCallback as string);
     }
   }
 
@@ -176,7 +198,7 @@ async function main() {
   };
 
   const providerArg = args.find((arg) => !arg.startsWith("-"));
-  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord")) {
+  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord" || providerArg === "gitlab")) {
     showProviderHelp(providerArg);
   }
 
@@ -205,7 +227,7 @@ Examples:
   }
 
   if (flags.provider) {
-    const validProviders = ["google", "github", "discord"];
+    const validProviders = ["google", "github", "discord", "gitlab"];
     const providers = flags.provider.split(",").map((p) => p.trim().toLowerCase());
     const invalid = providers.filter((p) => !validProviders.includes(p));
     if (invalid.length > 0) {
@@ -254,6 +276,7 @@ Examples:
         { value: "google", label: "Google" },
         { value: "github", label: "Github" },
         { value: "discord", label: "Discord" },
+        { value: "gitlab", label: "GitLab" },
       ],
     });
 
