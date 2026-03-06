@@ -12,10 +12,10 @@ import path from "path";
 import fs from "fs";
 import { GoogleAuthProvider } from "./lib/providers/google.js";
 import { GitHubAuthProvider } from "./lib/providers/github.js";
-import { globalConfig } from "./lib/config.js";
 import { DiscordAuthProvider } from "./lib/providers/discord.js";
 import { GitLabAuthProvider } from "./lib/providers/gitlab.js";
 import { VercelAuthProvider } from "./lib/providers/vercel.js";
+import { globalConfig } from "./lib/config.js";
 
 interface AuthLibrary {
   name: string;
@@ -302,6 +302,7 @@ Examples:
         { value: "discord", label: "Discord" },
         { value: "gitlab", label: "GitLab" },
         { value: "vercel", label: "Vercel" },
+        { value: "microsoft", label: "Microsoft", disabled: true, hint: "Coming soon" }
       ],
     });
 
