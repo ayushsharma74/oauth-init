@@ -8,6 +8,9 @@ Setting up OAuth involves navigating multiple console pages, copying IDs, and ma
 
 - **Google OAuth** - Fetches your GCP projects, opens consent screen and credentials pages, captures client ID/secret
 - **GitHub OAuth Apps** - One-click GitHub App manifest or manual OAuth App setup
+- **Discord OAuth** - Guided Discord Developer Portal setup with callback validation
+- **GitLab OAuth** - Supports user/group/instance app registration flows
+- **Microsoft OAuth** - Guided Azure App Registration flow (client ID/secret + tenant ID persistence)
 - **Smart defaults** - Remembers your current gcloud project, suggests callback URLs
 - **Flexible output** - Save to `.env`, `.env.local`, `.json`, or just print to console
 - **Non-interactive mode** - `--no-open` flag for CI/automated environments
@@ -47,6 +50,9 @@ The CLI will:
 |----------|------------|
 | Google | OAuth 2.0 (External) |
 | GitHub | OAuth App, GitHub App |
+| Discord | OAuth2 Application |
+| GitLab | OAuth2 Application (User/Group/Instance) |
+| Microsoft | Entra ID App Registration |
 
 ## Tech Stack
 

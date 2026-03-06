@@ -15,6 +15,7 @@ import { GitHubAuthProvider } from "./lib/providers/github.js";
 import { globalConfig } from "./lib/config.js";
 import { DiscordAuthProvider } from "./lib/providers/discord.js";
 import { GitLabAuthProvider } from "./lib/providers/gitlab.js";
+import { MicrosoftAuthProvider } from "./lib/providers/microsoft.js";
 
 interface AuthLibrary {
   name: string;
@@ -86,6 +87,12 @@ GitLab OAuth Setup:
   2. Redirect URI: http://localhost:3000/api/auth/callback/gitlab
   3. Need: Application ID and Client Secret from GitLab Applications
   4. Supports user-owned, group-owned, or instance-wide apps`,
+  microsoft: `
+Microsoft OAuth Setup:
+  1. Requires Microsoft Entra ID (Azure AD) app registration
+  2. Redirect URI: http://localhost:3000/api/auth/callback/microsoft
+  3. Need: Application (client) ID, Directory (tenant) ID, and Client Secret
+  4. Tenant can be 'common' for multitenant apps`,
 };
 
 function showProviderHelp(provider: string) {
@@ -178,6 +185,21 @@ async function setupOAuthServices(oauthServices: string[], customCallbackUrl?: s
       }
       const gitlabProvider = new GitLabAuthProvider();
       await gitlabProvider.run(gitlabOauthCallback as string);
+    } else if (service === "microsoft") {
+      log.step("Microsoft OAuth Setup");
+      const microsoftOauthCallback = globalConfig.skipPrompts
+        ? defaultCallback
+        : await text({
+            message: "Enter the Microsoft OAuth callback URL:",
+            placeholder: defaultCallback,
+            defaultValue: defaultCallback,
+          });
+      if (isCancel(microsoftOauthCallback)) {
+        cancel("Setup aborted.");
+        return;
+      }
+      const microsoftProvider = new MicrosoftAuthProvider();
+      await microsoftProvider.run(microsoftOauthCallback as string);
     }
   }
 
@@ -198,7 +220,7 @@ async function main() {
   };
 
   const providerArg = args.find((arg) => !arg.startsWith("-"));
-  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord" || providerArg === "gitlab")) {
+  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord" || providerArg === "gitlab" || providerArg === "microsoft")) {
     showProviderHelp(providerArg);
   }
 
@@ -211,7 +233,7 @@ Options:
   -q, --quiet            Reduce output verbosity
   -n, --no-open          Don't open browser URLs automatically
   -y, --skip-prompts     Use default options (for CI/CD)
-  -p, --provider=        Specify providers (comma-separated): google,github,discord
+  -p, --provider=        Specify providers (comma-separated): google,github,discord,gitlab,microsoft
   -c, --callback-url=   Base callback URL (default: http://localhost:3000)
 
 Examples:
@@ -227,7 +249,7 @@ Examples:
   }
 
   if (flags.provider) {
-    const validProviders = ["google", "github", "discord", "gitlab"];
+    const validProviders = ["google", "github", "discord", "gitlab", "microsoft"];
     const providers = flags.provider.split(",").map((p) => p.trim().toLowerCase());
     const invalid = providers.filter((p) => !validProviders.includes(p));
     if (invalid.length > 0) {
@@ -277,6 +299,7 @@ Examples:
         { value: "github", label: "Github" },
         { value: "discord", label: "Discord" },
         { value: "gitlab", label: "GitLab" },
+        { value: "microsoft", label: "Microsoft" },
       ],
     });
 

@@ -4,4 +4,4 @@ export interface OAuthProvider {
   run(callbackUrl: string): Promise<void>;
 }
 
-export type Provider = "google" | "github" | "discord" | "gitlab";
+export type Provider = "google" | "github" | "discord" | "gitlab" | "microsoft";

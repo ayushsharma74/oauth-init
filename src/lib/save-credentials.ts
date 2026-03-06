@@ -8,10 +8,16 @@ export async function saveCredentials(
   clientSecret: string,
   provider: Provider,
   saveOption: SaveOption,
+  extraEnv?: Record<string, string>,
 ): Promise<void> {
   const envKeyId = `${provider.toUpperCase()}_CLIENT_ID`;
   const envKeySecret = `${provider.toUpperCase()}_CLIENT_SECRET`;
-  const newEnvContent = `${envKeyId}=${clientId}\n${envKeySecret}=${clientSecret}`;
+  const envLines = [
+    `${envKeyId}=${clientId}`,
+    `${envKeySecret}=${clientSecret}`,
+    ...Object.entries(extraEnv ?? {}).map(([key, value]) => `${key}=${value}`),
+  ];
+  const newEnvContent = envLines.join("\n");
 
   if (saveOption === "print") {
     log.message(newEnvContent);
@@ -20,7 +26,7 @@ export async function saveCredentials(
   }
 
   if (saveOption === "json") {
-    const jsonContent = JSON.stringify({ clientId, clientSecret }, null, 2);
+    const jsonContent = JSON.stringify({ clientId, clientSecret, ...(extraEnv ?? {}) }, null, 2);
     const jsonPath = `${provider}-credentials.json`;
 
     if (!globalConfig.skipPrompts) {
