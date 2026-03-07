@@ -47,6 +47,9 @@ The CLI will:
 |----------|------------|
 | Google | OAuth 2.0 (External) |
 | GitHub | OAuth App, GitHub App |
+| Discord | OAuth 2.0 |
+| GitLab | OAuth 2.0 |
+| Vercel | OAuth Token |
 
 ## Tech Stack
 
