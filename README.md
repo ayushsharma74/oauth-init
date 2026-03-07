@@ -8,6 +8,7 @@ Setting up OAuth involves navigating multiple console pages, copying IDs, and ma
 
 - **Google OAuth** - Fetches your GCP projects, opens consent screen and credentials pages, captures client ID/secret
 - **GitHub OAuth Apps** - One-click GitHub App manifest or manual OAuth App setup
+- **Gumroad OAuth** - Opens Gumroad Advanced settings and captures application credentials
 - **Smart defaults** - Remembers your current gcloud project, suggests callback URLs
 - **Flexible output** - Save to `.env`, `.env.local`, `.json`, or just print to console
 - **Non-interactive mode** - `--no-open` flag for CI/automated environments
@@ -50,6 +51,7 @@ The CLI will:
 | Discord | OAuth 2.0 |
 | GitLab | OAuth 2.0 |
 | Vercel | OAuth Token |
+| Gumroad | OAuth 2.0 / API app |
 
 ## Tech Stack
 

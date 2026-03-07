@@ -1,14 +1,14 @@
 import { describe, test, expect, beforeEach } from "bun:test";
-import { writeFile, unlink, readFile, mkdir, rm } from "fs/promises";
+import { writeFile, readFile, mkdir, rm } from "fs/promises";
 import { join } from "path";
-import { SaveOption } from "./types.js";
+import { Provider, SaveOption } from "./types.js";
 
 const testDir = join(import.meta.dir, "test-temp");
 
 async function saveCredentialsToTestDir(
   clientId: string,
   clientSecret: string,
-  provider: "google" | "github",
+  provider: Provider,
   saveOption: SaveOption,
 ): Promise<void> {
   const envKeyId = `${provider.toUpperCase()}_CLIENT_ID`;
