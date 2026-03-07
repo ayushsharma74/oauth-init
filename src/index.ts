@@ -15,6 +15,7 @@ import { GitHubAuthProvider } from "./lib/providers/github.js";
 import { DiscordAuthProvider } from "./lib/providers/discord.js";
 import { GitLabAuthProvider } from "./lib/providers/gitlab.js";
 import { VercelAuthProvider } from "./lib/providers/vercel.js";
+import { GumroadAuthProvider } from "./lib/providers/gumroad.js";
 import { globalConfig } from "./lib/config.js";
 
 interface AuthLibrary {
@@ -95,6 +96,12 @@ Vercel OAuth Setup:
   4. Generate a Client Secret in your app settings
   5. Get the Client ID from your app settings
   6. For better-auth: https://www.better-auth.com/docs/plugins/oauth#vercel`,
+  gumroad: `
+Gumroad OAuth Setup:
+  1. Uses Gumroad Advanced settings to create an API application
+  2. Redirect URI: http://localhost:3000/api/auth/callback/gumroad
+  3. Need: Application ID and Application Secret from Gumroad
+  4. Sign in to Gumroad before starting`,
 };
 
 function showProviderHelp(provider: string) {
@@ -202,6 +209,21 @@ async function setupOAuthServices(oauthServices: string[], customCallbackUrl?: s
       }
       const vercelProvider = new VercelAuthProvider();
       await vercelProvider.run(vercelOauthCallback as string);
+    } else if (service === "gumroad") {
+      log.step("Gumroad OAuth Setup");
+      const gumroadOauthCallback = globalConfig.skipPrompts
+        ? defaultCallback
+        : await text({
+            message: "Enter the Gumroad OAuth callback URL:",
+            placeholder: defaultCallback,
+            defaultValue: defaultCallback,
+          });
+      if (isCancel(gumroadOauthCallback)) {
+        cancel("Setup aborted.");
+        return;
+      }
+      const gumroadProvider = new GumroadAuthProvider();
+      await gumroadProvider.run(gumroadOauthCallback as string);
     }
   }
 
@@ -222,7 +244,7 @@ async function main() {
   };
 
   const providerArg = args.find((arg) => !arg.startsWith("-"));
-  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord" || providerArg === "gitlab" || providerArg === "vercel")) {
+  if (providerArg && (providerArg === "google" || providerArg === "github" || providerArg === "discord" || providerArg === "gitlab" || providerArg === "vercel" || providerArg === "gumroad")) {
     showProviderHelp(providerArg);
   }
 
@@ -235,7 +257,7 @@ Options:
   -q, --quiet            Reduce output verbosity
   -n, --no-open          Don't open browser URLs automatically
   -y, --skip-prompts     Use default options (for CI/CD)
-  -p, --provider=        Specify providers (comma-separated): google,github,discord,gitlab,vercel
+  -p, --provider=        Specify providers (comma-separated): google,github,discord,gitlab,vercel,gumroad
   -c, --callback-url=   Base callback URL (default: http://localhost:3000)
 
 Examples:
@@ -251,7 +273,7 @@ Examples:
   }
 
   if (flags.provider) {
-    const validProviders = ["google", "github", "discord", "gitlab", "vercel"];
+    const validProviders = ["google", "github", "discord", "gitlab", "vercel", "gumroad"];
     const providers = flags.provider.split(",").map((p) => p.trim().toLowerCase());
     const invalid = providers.filter((p) => !validProviders.includes(p));
     if (invalid.length > 0) {
@@ -302,6 +324,7 @@ Examples:
         { value: "discord", label: "Discord" },
         { value: "gitlab", label: "GitLab" },
         { value: "vercel", label: "Vercel" },
+        { value: "gumroad", label: "Gumroad" },
         { value: "microsoft", label: "Microsoft", disabled: true, hint: "Coming soon" }
       ],
     });
