@@ -64,7 +64,6 @@ async function getVercelTeams(): Promise<{ name: string; slug: string }[]> {
   try {
     const { stdout, stderr } = await execa("vercel", ["teams", "ls", "--format", "json"]);
     const teamsJson = JSON.parse(stdout);
-    console.log(teamsJson);
 
     const teams = teamsJson.teams.map((team: any) => ({
       name: team.name,
@@ -118,7 +117,7 @@ export class VercelAuthProvider implements OAuthProvider {
 
       const teamSlug = selectedTeam.slug;
       const appsUrl = teamSlug
-        ? `https://vercel.com/${teamSlug}/~/settings/apps/create`
+        ? `https://vercel.com/${teamSlug}/~/settings/apps`
         : `https://vercel.com/settings/apps`;
 
       logStep("Step 1: Create Vercel OAuth App");
@@ -141,7 +140,7 @@ export class VercelAuthProvider implements OAuthProvider {
 
       if (!globalConfig.skipPrompts) {
         note(
-          `1. Go to ${appsUrl}\n2. Click 'Create' to create a new App\n3. Enter Name and Slug for your app\n4. Configure Authorization Callback URL (use the URL above)\n5. Choose client authentication method\n6. Click Save\n7. Scroll to Client Secrets and click Generate`,
+          `1. Go to ${appsUrl}\n2. Click 'Create' to create a new App\n3. Enter Name and Slug for your app\n4. Configure Authorization Callback URL (use the URL above)\n5. Choose client authentication method\n6. Click Save\n7. Go to authentication tab, scroll down and generate secret`,
           "Action Required"
         );
 
