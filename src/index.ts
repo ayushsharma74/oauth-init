@@ -15,6 +15,7 @@ import { GitHubAuthProvider } from "./lib/providers/github.js";
 import { DiscordAuthProvider } from "./lib/providers/discord.js";
 import { GitLabAuthProvider } from "./lib/providers/gitlab.js";
 import { VercelAuthProvider } from "./lib/providers/vercel.js";
+import { MicrosoftAuthProvider } from "./lib/providers/microsoft.js";
 import { globalConfig } from "./lib/config.js";
 
 interface AuthLibrary {
@@ -95,6 +96,12 @@ Vercel OAuth Setup:
   4. Generate a Client Secret in your app settings
   5. Get the Client ID from your app settings
   6. For better-auth: https://www.better-auth.com/docs/plugins/oauth#vercel`,
+  microsoft: `
+  Microsoft OAuth Setup:
+  1. Requires a registerd account on Microsoft Entra admin center for app registration
+  2. Redirect URI: http://localhost:3000/api/auth/callback/microsoft
+  3. Need: Client ID and Client Secret from the application's Overview Page
+  4. Setup involves creating an app registration, configuring API permissions and creating a client secret. For detailed steps, refer to the Microsoft provider documentation.`,
 };
 
 function showProviderHelp(provider: string) {
@@ -203,6 +210,22 @@ async function setupOAuthServices(oauthServices: string[], customCallbackUrl?: s
       const vercelProvider = new VercelAuthProvider();
       await vercelProvider.run(vercelOauthCallback as string);
     }
+    else if (service === "microsoft") {
+      log.step("Microsoft OAuth Setup");
+      const microsoftOauthCallback = globalConfig.skipPrompts
+        ? defaultCallback
+        : await text({
+            message: "Enter the Microsoft OAuth callback URL:",
+            placeholder: defaultCallback,
+            defaultValue: defaultCallback,
+          });
+      if (isCancel(microsoftOauthCallback)) {
+        cancel("Setup aborted.");
+        return;
+      }
+      const microsoftProvider = new MicrosoftAuthProvider();
+      await microsoftProvider.run(microsoftOauthCallback as string);
+    }
   }
 
   outro("OAuth setup completed! Thank you for using oauth-init!");
@@ -251,7 +274,7 @@ Examples:
   }
 
   if (flags.provider) {
-    const validProviders = ["google", "github", "discord", "gitlab", "vercel"];
+    const validProviders = ["google", "github", "discord", "gitlab", "vercel", "microsoft"];
     const providers = flags.provider.split(",").map((p) => p.trim().toLowerCase());
     const invalid = providers.filter((p) => !validProviders.includes(p));
     if (invalid.length > 0) {
@@ -302,7 +325,7 @@ Examples:
         { value: "discord", label: "Discord" },
         { value: "gitlab", label: "GitLab" },
         { value: "vercel", label: "Vercel" },
-        { value: "microsoft", label: "Microsoft", disabled: true, hint: "Coming soon" }
+        { value: "microsoft", label: "Microsoft"}
       ],
     });
 
